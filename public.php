@@ -14,7 +14,7 @@ class WOCI_Public extends WOCI_Base {
 		define( 'SETTING_REQUEST_METHOD', 'POST');
 		define( 'SETTING_GATEWAY', '/gateway/');
 
-		add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
+		$this->plugins_loaded();
 	}
 
 	public function plugins_loaded(){

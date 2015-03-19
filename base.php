@@ -12,7 +12,11 @@ class WOCI_Base {
 		return __( $message, WOCI_DOMAIN );
 	}
 
-	protected function e( $message ){
+	protected function e( $message ) {
 		echo $this->t( $message );
+	}
+
+	protected function debug( $message ) {
+		$this->context->debug( $message );
 	}
 }
