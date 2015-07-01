@@ -1,28 +1,65 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) exit;
+/*
+ * Plugin Name: Open Catalog Interface
+ * Plugin URI: http://www.clickandcreate.us/
+ * Description: OCI Integration Plugin.
+ * Version: 0.0.1
+ * Author: Miguel Martinez
+ * Author URI: http://miguelmartinez.com
+ */
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
-class WOCI_Public extends WOCI_Base {
+class OpenCI_Result {
 
-	public function __construct( $context ) {
+	public static function create( $success = true ) {
+		return new OpenCI_Result( $success );
+	}
 
-		parent::__construct( $context );
-		
-		define( 'SETTING_COOKIE', 'woci_hookurl');
-		define( 'SETTING_USERNAME', 'username');
-		define( 'SETTING_PASSWORD', 'password');
-		define( 'SETTING_HOOK_URL', 'HOOK_URL');
-		define( 'SETTING_REQUEST_METHOD', 'POST');
-		define( 'SETTING_GATEWAY', '/gateway/');
+	public function __construct( $success ) {
+		$this->success = $success;
+		$this->errors = array();
+		$this->data = null;
+	}
 
-		$this->plugins_loaded();
+	public function failed(){
+		$this->success = false;
+		return $this;
+	}
+
+	public function add_error( $error ){
+		$this->errors[] = $error;
+		return $this;
+	}
+
+	public function with_data( $data ){
+		$this->data = $data;
+		return $this;
+	}
+}
+
+class OpenCI_OpenCatalogInterface {
+
+	const SETTING_COOKIE = 'wp_openci_hookurl';
+	const SETTING_USERNAME = 'username';
+	const SETTING_PASSWORD = 'password';
+	const SETTING_HOOK_URL = 'HOOK_URL';
+	const SETTING_REQUEST_METHOD = 'POST';
+	const SETTING_GATEWAY = '/gateway/';
+
+	public function __construct( ) {
+
+		add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
 	}
 
 	public function plugins_loaded(){
 
+		if( is_admin() )
+			return;
+
 		add_action( 'init', array( $this, 'init' ) );
 
-		add_filter( 'woocommerce_get_cart_url', array( $this, 'woocommerce_get_cart_url' ) );
-		add_action( 'woocommerce_after_cart_table', array( $this, 'woocommerce_after_cart_table' ) );
+		add_filter( 'oci_get_cart_url', array( $this, 'woocommerce_get_cart_url' ) );
+		add_action( 'oci_after_cart_table', array( $this, 'woocommerce_after_cart_table' ) );
 	}
 
     private static function get_current_slug(){
@@ -66,10 +103,10 @@ class WOCI_Public extends WOCI_Base {
 
     private static function set_hookUrl(){
 
-		$hook_url = empty( $_POST[SETTING_HOOK_URL] ) ? 'empty' : $_POST[SETTING_HOOK_URL];
+		$hook_url = self::_g( self::SETTING_HOOK_URL );
 		$key = self::generate_key();
 		
-		setcookie( SETTING_COOKIE, $key , time() + DAY_IN_SECONDS, SITECOOKIEPATH, COOKIE_DOMAIN );
+		setcookie( self::SETTING_COOKIE, $key , time() + DAY_IN_SECONDS, SITECOOKIEPATH, COOKIE_DOMAIN );
 		
 		set_transient( $key, $hook_url, DAY_IN_SECONDS );
 
@@ -78,10 +115,10 @@ class WOCI_Public extends WOCI_Base {
 
     private static function get_hookUrl(){
 
-    	if( empty( $_COOKIE[ SETTING_COOKIE ] ) )
+    	if( empty( $_COOKIE[ self::SETTING_COOKIE ] ) )
     		return 'empty';
 
-    	$key = $_COOKIE[ SETTING_COOKIE ];
+    	$key = $_COOKIE[ self::SETTING_COOKIE ];
 
 		$hook_url = get_transient( $key );
 
@@ -95,7 +132,7 @@ class WOCI_Public extends WOCI_Base {
     }
 
     //
-    // We are waiting to see the gateway (SETTING_GATEWAY) route
+    // We are waiting to see the gateway (self::SETTING_GATEWAY) route
     // come by. When we see the gateway route the following is done:
     //
     // 	* It must be a POST
@@ -110,26 +147,26 @@ class WOCI_Public extends WOCI_Base {
 		// SRM Sever Setting - URL of Product Catalog:
 		// 	https://catalog.com/gateway/
 		//
-		if( self::get_current_slug() != SETTING_GATEWAY )
+		if( self::get_current_slug() != self::SETTING_GATEWAY )
 			return;
 
 		//
 		// SRM Sever Setting - URL of Product Catalog:
 		//	Must be a POST
 		//
-		if( $_SERVER['REQUEST_METHOD'] != SETTING_REQUEST_METHOD )
+		if( $_SERVER['REQUEST_METHOD'] != self::SETTING_REQUEST_METHOD )
 			self::shop();
 
 		global $woocommerce;
 
 		$woocommerce->cart->empty_cart();
 
-		$username = empty( $_POST[SETTING_USERNAME] ) ? '' : $_POST[SETTING_USERNAME];
-		$password = empty( $_POST[SETTING_PASSWORD] ) ? '' : $_POST[SETTING_PASSWORD];
+		$username = self::_g( self::SETTING_USERNAME );
+		$password = self::_g( self::SETTING_PASSWORD );
 
 		$result = self::authenticate( $username, $password );
 		if( ! $result->success ){
-			setcookie( SETTING_COOKIE, '', time() - MINUTE_IN_SECONDS, SITECOOKIEPATH, COOKIE_DOMAIN );
+			setcookie( self::SETTING_COOKIE, '', time() - MINUTE_IN_SECONDS, SITECOOKIEPATH, COOKIE_DOMAIN );
 			die( 'Intruder Alert!!<br/>' );
 		}
 
@@ -160,15 +197,8 @@ class WOCI_Public extends WOCI_Base {
 			$post = $cart_item['data']->post;
 			$price = get_post_meta( $post->ID, '_price', true );
 
-			/*
-			echo '<br/>';
-			print_r($cart_item);
-			echo '<br/>';
-			echo "PRICE " . get_post_meta( $post->ID, 'pdf', true );
-			*/
-
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-CUST_FIELD1[%d]" value="" />', $i );
-			echo sprintf( '<input type="hidden" name="NEW_ITEM-LONGTEXT_1[%d]" value="" />', $i );
+			echo sprintf( '<input type="hidden" name="NEW_ITEM-LONGTEXT_%d:132[]" value="" />', $i );
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-CUST_FIELD3[%d]" value="EXT" />', $i );
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-CUST_FIELD4[%d]" value="" />', $i );
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-CUST_FIELD5[%d]" value="" />', $i );
@@ -180,7 +210,7 @@ class WOCI_Public extends WOCI_Base {
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-LEADTIME[%d]" value="0" />', $i );
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-EXT_SCHEMA_TYPE[%d]" value="U135" />', $i );
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-DESCRIPTION[%d]" value="%s" />', $i, $post->post_title );
-			echo sprintf( '<input type="hidden" name="NEW_ITEM-MATGROUP[%d]" value="444111515" />', $i );
+			echo sprintf( '<input type="hidden" name="NEW_ITEM-MATGROUP[%d]" value="60105416" />', $i );
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-MATNR[%d]" value="" />', $i );
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-VENDOR[%d]" value="1769797" />', $i );
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-VENDORMAT[%d]" value="574754" />', $i );
@@ -191,5 +221,15 @@ class WOCI_Public extends WOCI_Base {
 			echo sprintf( '<input type="hidden" name="NEW_ITEM-QUANTITY[%d]" value="%.3f" />', $i, $cart_item['quantity'] );
 		}
 	}
+
+	private static function _g( $key ){
+		return !empty( $_GET[ $key ] ) ? $_GET[ $key ] : self::_p( $key );
+	}
+
+	private static function _p( $key ){
+		return !empty( $_POST[ $key ] ) ? $_POST[ $key ] : 'empty';
+	}
 }
+
+$oci = new OpenCI_OpenCatalogInterface();
 
