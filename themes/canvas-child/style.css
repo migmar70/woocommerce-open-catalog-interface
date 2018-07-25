@@ -1,0 +1,11 @@
+/*
+Theme Name: BASF Canvas Child Theme
+Theme URI: http://www.clickandcreate.us
+Version: 1.0.0
+Description: BASF is a Canvas Child Theme to overwrite the WooCommerce cart template
+Author: Miguel Martinez
+Author URI: http://miguelmartinez.com/
+Template: Canvas
+*/
+
+@import url('../canvas/style.css')
